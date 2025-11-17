@@ -888,14 +888,14 @@ class MainWindow(QMainWindow):
             return
 
         # Extraer información
-        clusters = ml_results.get('clusters', {})
+        clusters = ml_results.get('clusters', [])
         predicciones = ml_results.get('predicciones', {})
 
         ml_html = f"""
         <div style='padding: 20px;'>
             <h2>Análisis con Machine Learning</h2>
             <h3>Clustering (K-Means)</h3>
-            <p>Se identificaron {len(set(clusters.values()))} grupos de estudiantes
+            <p>Se identificaron {len(clusters)} grupos de estudiantes
             con patrones similares.</p>
 
             <h3>Predicciones de Riesgo</h3>
