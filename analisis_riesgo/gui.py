@@ -780,37 +780,53 @@ class MainWindow(QMainWindow):
         optimo = len(clasificacion.get('OPTIMO', []))
         total = alto + medio + alerta + optimo
 
-        summary_html = f"""
-        <div style='padding: 20px;'>
-            <h2>Resumen General</h2>
-            <p><strong>Total de estudiantes analizados:</strong> {total}</p>
-            <hr>
-            <h3>Distribución por Nivel de Riesgo:</h3>
-            <p style='color: #FF3B30; font-size: 16px;'>
-                🔴 <strong>Riesgo Alto:</strong> {alto} estudiantes
-                ({alto/total*100:.1f}% del total)
-            </p>
-            <p style='color: #FF9500; font-size: 16px;'>
-                🟠 <strong>Riesgo Medio:</strong> {medio} estudiantes
-                ({medio/total*100:.1f}% del total)
-            </p>
-            <p style='color: #FFCC00; font-size: 16px;'>
-                🟡 <strong>Alerta:</strong> {alerta} estudiantes
-                ({alerta/total*100:.1f}% del total)
-            </p>
-            <p style='color: #34C759; font-size: 16px;'>
-                🟢 <strong>Óptimo:</strong> {optimo} estudiantes
-                ({optimo/total*100:.1f}% del total)
-            </p>
-            <hr>
-            <h3>Recomendaciones:</h3>
-            <ul>
-                <li>Priorizar intervención para estudiantes en riesgo alto</li>
-                <li>Establecer seguimiento para estudiantes en riesgo medio</li>
-                <li>Monitorizar estudiantes en alerta</li>
-            </ul>
-        </div>
-        """
+        # Si no hay estudiantes, mostrar mensaje apropiado
+        if total == 0:
+            summary_html = """
+            <div style='padding: 20px;'>
+                <h2>Resumen General</h2>
+                <p><strong>No se encontraron estudiantes para analizar.</strong></p>
+                <p>Esto puede ocurrir si:</p>
+                <ul>
+                    <li>No hay datos de estudiantes en los archivos cargados</li>
+                    <li>Los estudiantes en asistencia y calificaciones no coinciden</li>
+                    <li>Hubo un error durante el análisis</li>
+                </ul>
+                <p>Por favor, revise los archivos de datos y vuelva a intentarlo.</p>
+            </div>
+            """
+        else:
+            summary_html = f"""
+            <div style='padding: 20px;'>
+                <h2>Resumen General</h2>
+                <p><strong>Total de estudiantes analizados:</strong> {total}</p>
+                <hr>
+                <h3>Distribución por Nivel de Riesgo:</h3>
+                <p style='color: #FF3B30; font-size: 16px;'>
+                    🔴 <strong>Riesgo Alto:</strong> {alto} estudiantes
+                    ({alto/total*100:.1f}% del total)
+                </p>
+                <p style='color: #FF9500; font-size: 16px;'>
+                    🟠 <strong>Riesgo Medio:</strong> {medio} estudiantes
+                    ({medio/total*100:.1f}% del total)
+                </p>
+                <p style='color: #FFCC00; font-size: 16px;'>
+                    🟡 <strong>Alerta:</strong> {alerta} estudiantes
+                    ({alerta/total*100:.1f}% del total)
+                </p>
+                <p style='color: #34C759; font-size: 16px;'>
+                    🟢 <strong>Óptimo:</strong> {optimo} estudiantes
+                    ({optimo/total*100:.1f}% del total)
+                </p>
+                <hr>
+                <h3>Recomendaciones:</h3>
+                <ul>
+                    <li>Priorizar intervención para estudiantes en riesgo alto</li>
+                    <li>Establecer seguimiento para estudiantes en riesgo medio</li>
+                    <li>Monitorizar estudiantes en alerta</li>
+                </ul>
+            </div>
+            """
 
         self.summary_content.setText(summary_html)
 
