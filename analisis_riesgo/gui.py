@@ -27,10 +27,10 @@ from PyQt6.QtGui import (
 )
 
 # Imports de módulos del proyecto
-from . import config
-from . import data_loader
-from . import analysis
-from . import report_generator
+import config
+import data_loader
+import analysis
+import report_generator
 
 
 # ============================================================================
