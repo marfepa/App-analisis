@@ -350,6 +350,167 @@ def analizar_rendimiento_curso(df_calificaciones: pd.DataFrame,
     return resultado
 
 
+def analizar_asistencia(df_asistencia: pd.DataFrame,
+                        umbrales: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Analiza la asistencia de todos los estudiantes.
+
+    Args:
+        df_asistencia: DataFrame de asistencia
+        umbrales: Diccionario de umbrales
+
+    Returns:
+        Diccionario con análisis por estudiante y resumen general
+    """
+    if umbrales is None:
+        umbrales = UMBRALES
+
+    estudiantes = df_asistencia['IDEstudiante'].unique()
+    analisis_estudiantes = {}
+
+    # Analizar cada estudiante
+    for est_id in estudiantes:
+        analisis_estudiantes[est_id] = analizar_asistencia_estudiante(
+            df_asistencia, est_id, umbrales=umbrales
+        )
+
+    # Calcular resumen general
+    porcentajes = [a['porcentaje_asistencia'] for a in analisis_estudiantes.values()]
+    niveles_riesgo = [a['nivel_riesgo'] for a in analisis_estudiantes.values()]
+
+    resumen = {
+        'total_estudiantes': len(estudiantes),
+        'porcentaje_asistencia_promedio': np.mean(porcentajes) if porcentajes else 0.0,
+        'estudiantes_riesgo_alto': sum(1 for n in niveles_riesgo if n == 'ALTO'),
+        'estudiantes_riesgo_medio': sum(1 for n in niveles_riesgo if n == 'MEDIO'),
+        'estudiantes_alerta': sum(1 for n in niveles_riesgo if n == 'ALERTA'),
+        'estudiantes_sin_riesgo': sum(1 for n in niveles_riesgo if n == 'NINGUNO'),
+    }
+
+    return {
+        'estudiantes': analisis_estudiantes,
+        'resumen': resumen
+    }
+
+
+def analizar_rendimiento(df_calificaciones: pd.DataFrame,
+                         umbrales: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Analiza el rendimiento académico de todos los estudiantes.
+
+    Args:
+        df_calificaciones: DataFrame de calificaciones
+        umbrales: Diccionario de umbrales
+
+    Returns:
+        Diccionario con análisis por estudiante y resumen general
+    """
+    if umbrales is None:
+        umbrales = UMBRALES
+
+    estudiantes = df_calificaciones['IDEstudiante'].unique()
+    analisis_estudiantes = {}
+
+    # Analizar cada estudiante
+    for est_id in estudiantes:
+        analisis_estudiantes[est_id] = analizar_rendimiento_estudiante(
+            df_calificaciones, est_id, umbrales=umbrales
+        )
+
+    # Calcular resumen general
+    notas_medias = [a['nota_media'] for a in analisis_estudiantes.values() if a['n_evaluaciones'] > 0]
+    niveles_riesgo = [a['nivel_riesgo'] for a in analisis_estudiantes.values()]
+    aprobados = [a.get('aprobado', False) for a in analisis_estudiantes.values()]
+
+    resumen = {
+        'total_estudiantes': len(estudiantes),
+        'nota_media_general': np.mean(notas_medias) if notas_medias else 0.0,
+        'tasa_aprobados': sum(aprobados) / len(aprobados) * 100 if aprobados else 0.0,
+        'estudiantes_riesgo_alto': sum(1 for n in niveles_riesgo if n == 'ALTO'),
+        'estudiantes_riesgo_medio': sum(1 for n in niveles_riesgo if n == 'MEDIO'),
+        'estudiantes_alerta': sum(1 for n in niveles_riesgo if n == 'ALERTA'),
+        'estudiantes_sin_riesgo': sum(1 for n in niveles_riesgo if n == 'NINGUNO'),
+    }
+
+    return {
+        'estudiantes': analisis_estudiantes,
+        'resumen': resumen
+    }
+
+
+def clasificar_estudiantes(resultados_asist: Dict[str, Any],
+                           resultados_rend: Dict[str, Any],
+                           umbrales: Dict[str, Any] = None) -> pd.DataFrame:
+    """
+    Clasifica estudiantes por nivel de riesgo combinando asistencia y rendimiento.
+
+    Args:
+        resultados_asist: Resultados del análisis de asistencia
+        resultados_rend: Resultados del análisis de rendimiento
+        umbrales: Diccionario de umbrales
+
+    Returns:
+        DataFrame con clasificación de estudiantes
+    """
+    if umbrales is None:
+        umbrales = UMBRALES
+
+    # Obtener todos los estudiantes únicos
+    estudiantes_asist = set(resultados_asist.get('estudiantes', {}).keys())
+    estudiantes_rend = set(resultados_rend.get('estudiantes', {}).keys())
+    todos_estudiantes = estudiantes_asist | estudiantes_rend
+
+    clasificacion = []
+
+    for est_id in todos_estudiantes:
+        # Obtener análisis de asistencia
+        asist = resultados_asist.get('estudiantes', {}).get(est_id, {
+            'porcentaje_asistencia': 0.0,
+            'nivel_riesgo': 'SIN_DATOS',
+            'sesiones_totales': 0,
+            'sesiones_asistidas': 0
+        })
+
+        # Obtener análisis de rendimiento
+        rend = resultados_rend.get('estudiantes', {}).get(est_id, {
+            'nota_media': 0.0,
+            'nivel_riesgo': 'SIN_DATOS',
+            'n_evaluaciones': 0,
+            'aprobado': False
+        })
+
+        # Calcular nivel de riesgo combinado
+        nivel_riesgo_final = obtener_nivel_riesgo_combinado(
+            asist['nivel_riesgo'],
+            rend['nivel_riesgo']
+        )
+
+        clasificacion.append({
+            'IDEstudiante': est_id,
+            'nivel_riesgo_asistencia': asist['nivel_riesgo'],
+            'nivel_riesgo_rendimiento': rend['nivel_riesgo'],
+            'nivel_riesgo_final': nivel_riesgo_final,
+            'porcentaje_asistencia': asist.get('porcentaje_asistencia', 0.0),
+            'sesiones_totales': asist.get('sesiones_totales', 0),
+            'sesiones_asistidas': asist.get('sesiones_asistidas', 0),
+            'nota_media': rend.get('nota_media', 0.0),
+            'n_evaluaciones': rend.get('n_evaluaciones', 0),
+            'aprobado': rend.get('aprobado', False),
+            'tendencia_asistencia': asist.get('tendencia', 'ESTABLE'),
+            'tendencia_rendimiento': rend.get('tendencia', 'ESTABLE'),
+        })
+
+    # Convertir a DataFrame y ordenar por nivel de riesgo
+    df_clasificacion = pd.DataFrame(clasificacion)
+
+    # Ordenar por nivel de riesgo (ALTO -> MEDIO -> ALERTA -> NINGUNO)
+    orden_riesgo = {'ALTO': 0, 'MEDIO': 1, 'ALERTA': 2, 'NINGUNO': 3, 'SIN_DATOS': 4}
+    df_clasificacion['_orden'] = df_clasificacion['nivel_riesgo_final'].map(orden_riesgo)
+    df_clasificacion = df_clasificacion.sort_values('_orden').drop('_orden', axis=1)
+
+    return df_clasificacion
+
+
 # ============================================================================
 # INGENIERÍA DE FEATURES PARA MACHINE LEARNING
 # ============================================================================
@@ -588,6 +749,79 @@ def entrenar_modelo_clustering(df_features: pd.DataFrame,
         )
 
     return modelo, scaler, labels, df_resultado
+
+
+def analizar_con_ml(df_asistencia: pd.DataFrame,
+                    df_calificaciones: pd.DataFrame,
+                    umbrales: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Ejecuta el análisis completo con Machine Learning.
+
+    Args:
+        df_asistencia: DataFrame de asistencia
+        df_calificaciones: DataFrame de calificaciones
+        umbrales: Diccionario de umbrales
+
+    Returns:
+        Diccionario con resultados del análisis ML
+    """
+    if umbrales is None:
+        umbrales = UMBRALES
+
+    try:
+        # 1. Crear features
+        logger.info("🔧 Creando features para Machine Learning...")
+        df_features = crear_features_ml(df_asistencia, df_calificaciones, umbrales)
+
+        if len(df_features) == 0:
+            logger.warning("⚠️  No se pudieron crear features. Retornando resultados vacíos.")
+            return {
+                'exito': False,
+                'mensaje': 'No hay datos suficientes para análisis ML',
+                'n_estudiantes': 0,
+            }
+
+        # 2. Entrenar modelo de clustering
+        modelo, scaler, labels, df_resultado = entrenar_modelo_clustering(df_features, umbrales)
+
+        # 3. Preparar resultados
+        resultados = {
+            'exito': True,
+            'n_estudiantes': len(df_resultado),
+            'n_clusters': len(set(labels)),
+            'df_features': df_features,
+            'df_resultado': df_resultado,
+            'modelo': modelo,
+            'scaler': scaler,
+            'labels': labels,
+        }
+
+        # 4. Estadísticas por cluster
+        clusters_info = []
+        for cluster_id in sorted(df_resultado['Cluster'].unique()):
+            cluster_data = df_resultado[df_resultado['Cluster'] == cluster_id]
+            nivel_riesgo = cluster_data['NivelRiesgoML'].iloc[0] if len(cluster_data) > 0 else 'DESCONOCIDO'
+
+            clusters_info.append({
+                'cluster_id': int(cluster_id),
+                'nivel_riesgo': nivel_riesgo,
+                'n_estudiantes': len(cluster_data),
+                'porcentaje_asistencia_media': cluster_data['asist_porcentaje'].mean(),
+                'nota_media': cluster_data['rend_nota_media'].mean(),
+            })
+
+        resultados['clusters'] = clusters_info
+
+        logger.info("✓ Análisis ML completado exitosamente")
+        return resultados
+
+    except Exception as e:
+        logger.error(f"❌ Error en análisis ML: {str(e)}")
+        return {
+            'exito': False,
+            'mensaje': f'Error en análisis ML: {str(e)}',
+            'n_estudiantes': 0,
+        }
 
 
 # ============================================================================
