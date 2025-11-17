@@ -77,6 +77,8 @@ def analizar_asistencia_estudiante(df_asistencia: pd.DataFrame,
             'retrasos': 0,
             'porcentaje_asistencia': 0.0,
             'nivel_riesgo': 'SIN_DATOS',
+            'patron_dias': {},
+            'tendencia': 'ESTABLE',
         }
 
     # Calcular métricas
@@ -224,7 +226,13 @@ def analizar_rendimiento_estudiante(df_calificaciones: pd.DataFrame,
         return {
             'n_evaluaciones': 0,
             'nota_media': 0.0,
+            'nota_min': 0.0,
+            'nota_max': 0.0,
+            'nota_std': 0.0,
             'nivel_riesgo': 'SIN_DATOS',
+            'competencias': {},
+            'tendencia': 'ESTABLE',
+            'aprobado': False,
         }
 
     # Calcular nota media ponderada
