@@ -398,6 +398,326 @@ def obtener_nivel_riesgo_combinado(nivel_asistencia: str,
 
 
 # ============================================================================
+# CONFIGURACIÓN DE GUI (PyQt6)
+# ============================================================================
+
+GUI_CONFIG = {
+    # Ventana principal
+    'window': {
+        'title': 'Análisis de Riesgo Académico - EF',
+        'width': 800,
+        'height': 600,
+        'min_width': 600,
+        'min_height': 400,
+        'border_radius': 12,
+    },
+
+    # Colores principales (estilo Apple)
+    'colors': {
+        'background': '#F0F0F0',
+        'background_opacity': 0.8,
+        'glass_background': 'rgba(255, 255, 255, 0.8)',
+        'glass_border': 'rgba(200, 200, 200, 0.3)',
+
+        'primary': '#007AFF',           # Azul Apple
+        'primary_hover': '#005BB5',
+        'primary_disabled': '#B3D7FF',
+
+        'text_primary': '#000000',
+        'text_secondary': '#6E6E6E',
+        'text_disabled': '#C7C7C7',
+
+        'success': '#34C759',           # Verde Apple
+        'warning': '#FF9500',           # Naranja Apple
+        'error': '#FF3B30',             # Rojo Apple
+        'info': '#5AC8FA',              # Azul claro Apple
+
+        'border': '#D1D1D6',
+        'shadow': 'rgba(0, 0, 0, 0.1)',
+    },
+
+    # Tipografía
+    'fonts': {
+        'family': 'Segoe UI, SF Pro Display, -apple-system, system-ui, sans-serif',
+        'size_title': 24,
+        'size_subtitle': 20,
+        'size_heading': 18,
+        'size_body': 14,
+        'size_small': 12,
+        'weight_regular': 400,
+        'weight_medium': 500,
+        'weight_bold': 600,
+    },
+
+    # Efectos visuales
+    'effects': {
+        'blur_radius': 10,
+        'shadow_offset': (0, 2),
+        'shadow_blur_radius': 8,
+        'animation_duration': 300,      # ms
+        'hover_scale': 1.02,
+    },
+
+    # Espaciado
+    'spacing': {
+        'xs': 4,
+        'sm': 8,
+        'md': 16,
+        'lg': 24,
+        'xl': 32,
+        'xxl': 48,
+    },
+
+    # Componentes
+    'header': {
+        'height': 60,
+        'padding': 20,
+    },
+
+    'button': {
+        'height': 44,
+        'padding_x': 24,
+        'padding_y': 12,
+        'border_radius': 8,
+        'min_width': 100,
+    },
+
+    'input': {
+        'height': 44,
+        'padding_x': 16,
+        'border_radius': 8,
+    },
+
+    'card': {
+        'padding': 20,
+        'border_radius': 12,
+        'margin': 12,
+    },
+
+    'footer': {
+        'height': 40,
+        'padding': 12,
+    },
+}
+
+
+# Estilos CSS para PyQt6
+GUI_STYLES = {
+    'main_window': """
+        QMainWindow {
+            background-color: #F0F0F0;
+        }
+    """,
+
+    'glass_widget': """
+        QWidget {
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(200, 200, 200, 0.3);
+            border-radius: 12px;
+        }
+    """,
+
+    'primary_button': """
+        QPushButton {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            min-height: 44px;
+        }
+        QPushButton:hover {
+            background-color: #005BB5;
+        }
+        QPushButton:pressed {
+            background-color: #004494;
+        }
+        QPushButton:disabled {
+            background-color: #B3D7FF;
+            color: #FFFFFF;
+        }
+    """,
+
+    'secondary_button': """
+        QPushButton {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #007AFF;
+            border: 1px solid #007AFF;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            min-height: 44px;
+        }
+        QPushButton:hover {
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+        QPushButton:pressed {
+            background-color: rgba(0, 122, 255, 0.2);
+        }
+    """,
+
+    'upload_button': """
+        QPushButton {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #000000;
+            border: 2px dashed #D1D1D6;
+            border-radius: 8px;
+            padding: 32px;
+            font-size: 14px;
+            min-height: 120px;
+        }
+        QPushButton:hover {
+            border-color: #007AFF;
+            background-color: rgba(0, 122, 255, 0.05);
+        }
+    """,
+
+    'header_label': """
+        QLabel {
+            color: #000000;
+            font-size: 20px;
+            font-weight: 600;
+            background: transparent;
+        }
+    """,
+
+    'body_label': """
+        QLabel {
+            color: #000000;
+            font-size: 14px;
+            background: transparent;
+        }
+    """,
+
+    'secondary_label': """
+        QLabel {
+            color: #6E6E6E;
+            font-size: 12px;
+            background: transparent;
+        }
+    """,
+
+    'line_edit': """
+        QLineEdit {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #D1D1D6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 14px;
+            min-height: 44px;
+        }
+        QLineEdit:focus {
+            border-color: #007AFF;
+        }
+    """,
+
+    'slider': """
+        QSlider::groove:horizontal {
+            background: #D1D1D6;
+            height: 4px;
+            border-radius: 2px;
+        }
+        QSlider::handle:horizontal {
+            background: #007AFF;
+            width: 16px;
+            height: 16px;
+            margin: -6px 0;
+            border-radius: 8px;
+        }
+        QSlider::handle:horizontal:hover {
+            background: #005BB5;
+        }
+    """,
+
+    'progress_bar': """
+        QProgressBar {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #D1D1D6;
+            border-radius: 8px;
+            text-align: center;
+            height: 24px;
+        }
+        QProgressBar::chunk {
+            background-color: #007AFF;
+            border-radius: 7px;
+        }
+    """,
+
+    'table': """
+        QTableWidget {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #D1D1D6;
+            border-radius: 8px;
+            gridline-color: #E5E5E5;
+            font-size: 14px;
+        }
+        QTableWidget::item {
+            padding: 8px;
+        }
+        QHeaderView::section {
+            background-color: rgba(240, 240, 240, 0.95);
+            color: #000000;
+            font-weight: 600;
+            padding: 12px;
+            border: none;
+            border-bottom: 1px solid #D1D1D6;
+        }
+    """,
+
+    'tab_widget': """
+        QTabWidget::pane {
+            border: 1px solid #D1D1D6;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+        QTabBar::tab {
+            background-color: rgba(255, 255, 255, 0.6);
+            color: #6E6E6E;
+            padding: 12px 24px;
+            border: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin-right: 4px;
+        }
+        QTabBar::tab:selected {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #007AFF;
+            font-weight: 600;
+        }
+        QTabBar::tab:hover {
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+    """,
+
+    'scroll_area': """
+        QScrollArea {
+            border: none;
+            background-color: transparent;
+        }
+        QScrollBar:vertical {
+            background-color: transparent;
+            width: 8px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            min-height: 20px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+    """,
+}
+
+
+# ============================================================================
 # EXPORTAR CONFIGURACIÓN
 # ============================================================================
 
@@ -408,6 +728,8 @@ __all__ = [
     'REPORTE_CONFIG',
     'DATOS_CONFIG',
     'MENSAJES',
+    'GUI_CONFIG',
+    'GUI_STYLES',
     'cargar_umbrales_personalizados',
     'validar_umbrales',
     'obtener_nivel_riesgo_asistencia',
