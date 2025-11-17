@@ -121,6 +121,104 @@ def leer_csv_robusto(file_path: str,
 
 
 # ============================================================================
+# MAPEO AUTOMÁTICO DE COLUMNAS
+# ============================================================================
+
+def mapear_columnas_automaticamente(df: pd.DataFrame,
+                                    mapeo: Dict[str, List[str]]) -> pd.DataFrame:
+    """
+    Mapea automáticamente columnas del DataFrame usando nombres alternativos.
+
+    Args:
+        df: DataFrame original
+        mapeo: Diccionario con mapeo de columnas {nombre_estandar: [nombres_alternativos]}
+
+    Returns:
+        DataFrame con columnas renombradas
+    """
+    df = df.copy()
+    renombramientos = {}
+
+    for columna_estandar, nombres_alternativos in mapeo.items():
+        # Buscar si alguna de las alternativas existe en el DataFrame
+        for nombre_alt in nombres_alternativos:
+            if nombre_alt in df.columns and columna_estandar not in df.columns:
+                renombramientos[nombre_alt] = columna_estandar
+                logger.info(f"  📝 Mapeando '{nombre_alt}' → '{columna_estandar}'")
+                break
+
+    if renombramientos:
+        df = df.rename(columns=renombramientos)
+        logger.info(f"✓ {len(renombramientos)} columnas mapeadas automáticamente")
+
+    return df
+
+
+def generar_id_estudiante(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Genera IDEstudiante a partir de NombreEstudiante si no existe.
+
+    Args:
+        df: DataFrame con posible columna NombreEstudiante
+
+    Returns:
+        DataFrame con columna IDEstudiante
+    """
+    df = df.copy()
+
+    if 'IDEstudiante' not in df.columns and 'NombreEstudiante' in df.columns:
+        logger.info("  🔧 Generando IDEstudiante a partir de NombreEstudiante...")
+
+        # Crear un mapeo de nombres a IDs
+        nombres_unicos = df['NombreEstudiante'].unique()
+        nombre_a_id = {nombre: f"EST{str(i+1).zfill(4)}"
+                      for i, nombre in enumerate(sorted(nombres_unicos))}
+
+        df['IDEstudiante'] = df['NombreEstudiante'].map(nombre_a_id)
+        logger.info(f"  ✓ Generados {len(nombres_unicos)} IDs de estudiante")
+
+    return df
+
+
+def generar_curso_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Genera CursoID genérico si no existe.
+
+    Args:
+        df: DataFrame
+
+    Returns:
+        DataFrame con columna CursoID
+    """
+    df = df.copy()
+
+    if 'CursoID' not in df.columns:
+        logger.info("  ⚠️  CursoID no encontrado, usando valor genérico 'CURSO01'")
+        df['CursoID'] = 'CURSO01'
+
+    return df
+
+
+def generar_evaluacion(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Genera columna Evaluacion genérica si no existe.
+
+    Args:
+        df: DataFrame
+
+    Returns:
+        DataFrame con columna Evaluacion
+    """
+    df = df.copy()
+
+    if 'Evaluacion' not in df.columns:
+        logger.info("  ℹ️  Evaluacion no encontrada, usando valor genérico 'Eval1'")
+        df['Evaluacion'] = 'Eval1'
+
+    return df
+
+
+# ============================================================================
 # VALIDACIÓN DE DATOS
 # ============================================================================
 
@@ -362,18 +460,22 @@ def limpiar_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
     if 'Fecha' in df.columns:
         df = convertir_fechas(df, 'Fecha')
 
-    # Eliminar duplicados
-    registros_antes = len(df)
-    df = df.drop_duplicates(
-        subset=['IDEstudiante', 'CursoID', 'Evaluacion', 'Competencia']
-    )
-    registros_despues = len(df)
+    # Eliminar duplicados (solo usar columnas que existen)
+    columnas_dedup = []
+    for col in ['IDEstudiante', 'CursoID', 'Evaluacion', 'Competencia']:
+        if col in df.columns:
+            columnas_dedup.append(col)
 
-    if registros_antes != registros_despues:
-        logger.warning(
-            f"⚠️  {registros_antes - registros_despues} registros "
-            f"duplicados eliminados de calificaciones"
-        )
+    if columnas_dedup:
+        registros_antes = len(df)
+        df = df.drop_duplicates(subset=columnas_dedup)
+        registros_despues = len(df)
+
+        if registros_antes != registros_despues:
+            logger.warning(
+                f"⚠️  {registros_antes - registros_despues} registros "
+                f"duplicados eliminados de calificaciones"
+            )
 
     logger.info(f"✓ Calificaciones limpiadas: {len(df)} registros")
 
@@ -438,14 +540,27 @@ def cargar_calificaciones(calificaciones_path: str) -> pd.DataFrame:
 
     df_calificaciones = leer_csv_robusto(calificaciones_path)
 
-    # Validar columnas requeridas
+    # Mapear columnas automáticamente
+    if 'mapeo_columnas_calificaciones' in DATOS_CONFIG:
+        logger.info("  🔄 Aplicando mapeo automático de columnas...")
+        df_calificaciones = mapear_columnas_automaticamente(
+            df_calificaciones,
+            DATOS_CONFIG['mapeo_columnas_calificaciones']
+        )
+
+    # Generar columnas faltantes
+    df_calificaciones = generar_id_estudiante(df_calificaciones)
+    df_calificaciones = generar_curso_id(df_calificaciones)
+    df_calificaciones = generar_evaluacion(df_calificaciones)
+
+    # Validar columnas requeridas (ahora solo Nota es requerida)
     validar_columnas(
         df_calificaciones,
         DATOS_CONFIG['columnas_calificaciones'],
         'Calificaciones'
     )
 
-    # Anonimizar
+    # Anonimizar (eliminar NombreEstudiante después de generar el ID)
     df_calificaciones = anonimizar_datos(df_calificaciones)
 
     # Limpiar
@@ -470,35 +585,41 @@ def validar_datos(df_asistencia: pd.DataFrame,
     """
     logger.info("🔍 Validando consistencia entre datasets...")
 
+    # Verificar que ambos DataFrames tengan la columna IDEstudiante
+    if 'IDEstudiante' not in df_asistencia.columns or 'IDEstudiante' not in df_calificaciones.columns:
+        logger.warning("⚠️  IDEstudiante no encontrado en uno o ambos datasets. Saltando validación cruzada.")
+        return
+
     # Verificar que haya estudiantes en común
     estudiantes_asist = set(df_asistencia['IDEstudiante'].unique())
     estudiantes_calif = set(df_calificaciones['IDEstudiante'].unique())
     estudiantes_comunes = estudiantes_asist & estudiantes_calif
 
     if not estudiantes_comunes:
-        raise ValueError(
-            "NO hay estudiantes en común entre asistencia y calificaciones. "
-            "Verificar IDs de estudiantes."
+        logger.warning(
+            "⚠️  NO hay estudiantes en común entre asistencia y calificaciones. "
+            "El análisis se realizará con los datos disponibles."
         )
     else:
         logger.info(
             f"✓ {len(estudiantes_comunes)} estudiantes en común encontrados"
         )
 
-    # Verificar que haya cursos en común
-    cursos_asist = set(df_asistencia['CursoID'].unique())
-    cursos_calif = set(df_calificaciones['CursoID'].unique())
-    cursos_comunes = cursos_asist & cursos_calif
+    # Verificar que haya cursos en común (si ambos tienen CursoID)
+    if 'CursoID' in df_asistencia.columns and 'CursoID' in df_calificaciones.columns:
+        cursos_asist = set(df_asistencia['CursoID'].unique())
+        cursos_calif = set(df_calificaciones['CursoID'].unique())
+        cursos_comunes = cursos_asist & cursos_calif
 
-    if not cursos_comunes:
-        logger.warning(
-            "⚠️  NO hay cursos en común entre asistencia y calificaciones. "
-            "Verificar IDs de cursos."
-        )
-    else:
-        logger.info(
-            f"✓ {len(cursos_comunes)} cursos en común encontrados"
-        )
+        if not cursos_comunes:
+            logger.warning(
+                "⚠️  NO hay cursos en común entre asistencia y calificaciones. "
+                "Verificar IDs de cursos."
+            )
+        else:
+            logger.info(
+                f"✓ {len(cursos_comunes)} cursos en común encontrados"
+            )
 
     logger.info("✓ Validación completada")
 
@@ -579,14 +700,27 @@ def cargar_datos(asistencia_path: str,
 
     df_calificaciones = leer_csv_robusto(calificaciones_path)
 
-    # Validar columnas requeridas
+    # Mapear columnas automáticamente
+    if 'mapeo_columnas_calificaciones' in DATOS_CONFIG:
+        logger.info("  🔄 Aplicando mapeo automático de columnas...")
+        df_calificaciones = mapear_columnas_automaticamente(
+            df_calificaciones,
+            DATOS_CONFIG['mapeo_columnas_calificaciones']
+        )
+
+    # Generar columnas faltantes
+    df_calificaciones = generar_id_estudiante(df_calificaciones)
+    df_calificaciones = generar_curso_id(df_calificaciones)
+    df_calificaciones = generar_evaluacion(df_calificaciones)
+
+    # Validar columnas requeridas (ahora solo Nota es requerida)
     validar_columnas(
         df_calificaciones,
         DATOS_CONFIG['columnas_calificaciones'],
         'Calificaciones'
     )
 
-    # Anonimizar
+    # Anonimizar (eliminar NombreEstudiante después de generar el ID)
     df_calificaciones = anonimizar_datos(df_calificaciones)
 
     # Limpiar
