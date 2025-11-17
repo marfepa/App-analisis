@@ -164,21 +164,33 @@ DATOS_CONFIG = {
         'Observaciones',
     ],
 
-    # Columnas requeridas en CSV de calificaciones
+    # Columnas requeridas en CSV de calificaciones (flexibles - se intentará mapeo automático)
     'columnas_calificaciones': [
-        'IDEstudiante',
-        'CursoID',
-        'Evaluacion',
-        'Nota',
+        'Nota',  # Solo esta es realmente requerida
     ],
 
     # Columnas opcionales en CSV de calificaciones
     'columnas_calificaciones_opcionales': [
+        'IDEstudiante',
+        'CursoID',
+        'Evaluacion',
         'Competencia',
         'Fecha',
         'Peso',
         'Observaciones',
     ],
+
+    # Mapeo de columnas alternativas para calificaciones
+    'mapeo_columnas_calificaciones': {
+        'IDEstudiante': ['IDEstudiante', 'id_estudiante', 'EstudianteID'],
+        'NombreEstudiante': ['NombreEstudiante', 'nombre_estudiante', 'Nombre', 'nombre'],
+        'CursoID': ['CursoID', 'curso_id', 'Curso', 'CursoEvaluado', 'curso'],
+        'Evaluacion': ['Evaluacion', 'evaluacion', 'NombreInstrumento', 'Instrumento', 'instrumento'],
+        'Nota': ['Nota', 'nota', 'PuntuacionCriterio', 'CalificacionTotalInstrumento', 'Calificacion', 'calificacion'],
+        'Fecha': ['Fecha', 'fecha', 'FechaEvaluacion', 'fecha_evaluacion'],
+        'Competencia': ['Competencia', 'competencia', 'NombreCriterioEvaluado', 'Criterio'],
+        'Peso': ['Peso', 'peso', 'ponderacion', 'Ponderacion'],
+    },
 
     # Delimitadores CSV a probar
     'delimitadores_csv': [',', ';', '\t'],
