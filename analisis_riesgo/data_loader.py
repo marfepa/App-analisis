@@ -381,6 +381,129 @@ def limpiar_calificaciones(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================================
+# FUNCIONES INDIVIDUALES DE CARGA (para uso desde GUI)
+# ============================================================================
+
+def cargar_asistencia(asistencia_path: str) -> pd.DataFrame:
+    """
+    Carga solo el archivo de asistencia.
+
+    Args:
+        asistencia_path: Ruta al CSV de asistencia
+
+    Returns:
+        DataFrame de asistencia limpio y validado
+
+    Raises:
+        ValueError: Si los datos no son válidos
+        FileNotFoundError: Si el archivo no existe
+    """
+    logger.info("📊 Cargando datos de ASISTENCIA...")
+
+    df_asistencia = leer_csv_robusto(asistencia_path)
+
+    # Validar columnas requeridas
+    validar_columnas(
+        df_asistencia,
+        DATOS_CONFIG['columnas_asistencia'],
+        'Asistencia'
+    )
+
+    # Anonimizar
+    df_asistencia = anonimizar_datos(df_asistencia)
+
+    # Limpiar
+    df_asistencia = limpiar_asistencia(df_asistencia)
+
+    logger.info(f"✓ Asistencia cargada: {len(df_asistencia)} registros")
+
+    return df_asistencia
+
+
+def cargar_calificaciones(calificaciones_path: str) -> pd.DataFrame:
+    """
+    Carga solo el archivo de calificaciones.
+
+    Args:
+        calificaciones_path: Ruta al CSV de calificaciones
+
+    Returns:
+        DataFrame de calificaciones limpio y validado
+
+    Raises:
+        ValueError: Si los datos no son válidos
+        FileNotFoundError: Si el archivo no existe
+    """
+    logger.info("📊 Cargando datos de CALIFICACIONES...")
+
+    df_calificaciones = leer_csv_robusto(calificaciones_path)
+
+    # Validar columnas requeridas
+    validar_columnas(
+        df_calificaciones,
+        DATOS_CONFIG['columnas_calificaciones'],
+        'Calificaciones'
+    )
+
+    # Anonimizar
+    df_calificaciones = anonimizar_datos(df_calificaciones)
+
+    # Limpiar
+    df_calificaciones = limpiar_calificaciones(df_calificaciones)
+
+    logger.info(f"✓ Calificaciones cargadas: {len(df_calificaciones)} registros")
+
+    return df_calificaciones
+
+
+def validar_datos(df_asistencia: pd.DataFrame,
+                  df_calificaciones: pd.DataFrame) -> None:
+    """
+    Valida la consistencia entre los datasets de asistencia y calificaciones.
+
+    Args:
+        df_asistencia: DataFrame de asistencia
+        df_calificaciones: DataFrame de calificaciones
+
+    Raises:
+        ValueError: Si no hay datos en común entre los datasets
+    """
+    logger.info("🔍 Validando consistencia entre datasets...")
+
+    # Verificar que haya estudiantes en común
+    estudiantes_asist = set(df_asistencia['IDEstudiante'].unique())
+    estudiantes_calif = set(df_calificaciones['IDEstudiante'].unique())
+    estudiantes_comunes = estudiantes_asist & estudiantes_calif
+
+    if not estudiantes_comunes:
+        raise ValueError(
+            "NO hay estudiantes en común entre asistencia y calificaciones. "
+            "Verificar IDs de estudiantes."
+        )
+    else:
+        logger.info(
+            f"✓ {len(estudiantes_comunes)} estudiantes en común encontrados"
+        )
+
+    # Verificar que haya cursos en común
+    cursos_asist = set(df_asistencia['CursoID'].unique())
+    cursos_calif = set(df_calificaciones['CursoID'].unique())
+    cursos_comunes = cursos_asist & cursos_calif
+
+    if not cursos_comunes:
+        logger.warning(
+            "⚠️  NO hay cursos en común entre asistencia y calificaciones. "
+            "Verificar IDs de cursos."
+        )
+    else:
+        logger.info(
+            f"✓ {len(cursos_comunes)} cursos en común encontrados"
+        )
+
+    logger.info("✓ Validación completada")
+
+
+# ============================================================================
 # FUNCIÓN PRINCIPAL DE CARGA
 # ============================================================================
 
