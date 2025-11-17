@@ -56,58 +56,26 @@ class AnalysisWorker(QThread):
         """Ejecuta el análisis completo."""
         try:
             # 1. Cargar datos
-            self.progress.emit(10, "Cargando datos de asistencia...")
-            df_asistencia = data_loader.cargar_asistencia(self.asistencia_path)
-
-            self.progress.emit(20, "Cargando datos de calificaciones...")
-            df_calificaciones = data_loader.cargar_calificaciones(
-                self.calificaciones_path
-            )
-
-            # 2. Validar datos
-            self.progress.emit(30, "Validando datos...")
-            data_loader.validar_datos(df_asistencia, df_calificaciones)
-
-            # 3. Analizar asistencia
-            self.progress.emit(40, "Analizando asistencia...")
-            resultados_asist = analysis.analizar_asistencia(
-                df_asistencia,
+            self.progress.emit(10, "Cargando y validando datos...")
+            df_asistencia, df_calificaciones, estadisticas = data_loader.cargar_datos(
+                self.asistencia_path,
+                self.calificaciones_path,
                 self.umbrales
             )
 
-            # 4. Analizar rendimiento
-            self.progress.emit(60, "Analizando rendimiento académico...")
-            resultados_rend = analysis.analizar_rendimiento(
-                df_calificaciones,
-                self.umbrales
-            )
-
-            # 5. Clasificar estudiantes
-            self.progress.emit(70, "Clasificando estudiantes por riesgo...")
-            clasificacion = analysis.clasificar_estudiantes(
-                resultados_asist,
-                resultados_rend,
-                self.umbrales
-            )
-
-            # 6. Análisis ML
-            self.progress.emit(80, "Ejecutando análisis con Machine Learning...")
-            ml_results = analysis.analizar_con_ml(
+            # 2. Realizar análisis completo
+            self.progress.emit(40, "Analizando asistencia y rendimiento...")
+            resultados = analysis.realizar_analisis_completo(
                 df_asistencia,
                 df_calificaciones,
                 self.umbrales
             )
 
-            # 7. Compilar resultados
+            # 3. Añadir DataFrames al resultado
             self.progress.emit(95, "Compilando resultados...")
-            resultados = {
-                'asistencia': resultados_asist,
-                'rendimiento': resultados_rend,
-                'clasificacion': clasificacion,
-                'ml': ml_results,
-                'df_asistencia': df_asistencia,
-                'df_calificaciones': df_calificaciones,
-            }
+            resultados['df_asistencia'] = df_asistencia
+            resultados['df_calificaciones'] = df_calificaciones
+            resultados['estadisticas'] = estadisticas
 
             self.progress.emit(100, "Análisis completado")
             self.finished.emit(resultados)
@@ -131,21 +99,24 @@ class ReportWorker(QThread):
     def run(self):
         """Genera el reporte."""
         try:
+            # Generar ruta de salida con directorio personalizado
+            from datetime import datetime
+            from pathlib import Path
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+
             if self.formato == 'excel':
+                output_path = f"{self.output_dir}/analisis_riesgo_{timestamp}.xlsx"
                 output_path = report_generator.generar_reporte_excel(
-                    self.resultados['asistencia'],
-                    self.resultados['rendimiento'],
-                    self.resultados['clasificacion'],
-                    self.resultados['ml'],
-                    output_dir=self.output_dir
+                    self.resultados,
+                    output_path=output_path
                 )
             elif self.formato == 'word':
+                output_path = f"{self.output_dir}/informe_riesgo_{timestamp}.docx"
                 output_path = report_generator.generar_reporte_word(
-                    self.resultados['asistencia'],
-                    self.resultados['rendimiento'],
-                    self.resultados['clasificacion'],
-                    self.resultados['ml'],
-                    output_dir=self.output_dir
+                    self.resultados,
+                    output_path=output_path
                 )
             else:
                 raise ValueError(f"Formato desconocido: {self.formato}")
