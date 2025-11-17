@@ -21,3 +21,7 @@ seaborn>=0.12.0
 
 # Optional: Progress bars (for large datasets)
 tqdm>=4.65.0
+
+# GUI Framework
+PyQt6>=6.5.0
+PyQt6-Qt6>=6.5.0

@@ -6,11 +6,14 @@ Este programa analiza datos de asistencia y calificaciones de estudiantes
 de Educación Física, identifica patrones de riesgo académico utilizando
 machine learning, y genera reportes detallados en Excel y Word.
 
-Uso:
+Uso GUI (por defecto):
+    python main.py
+
+Uso CLI (con argumentos):
     python main.py --asistencia datos/asistencia.csv --calificaciones datos/calificaciones.csv
 
 Autor: Sistema de Análisis de Riesgo Académico
-Versión: 1.0.0
+Versión: 2.0.0
 Licencia: MIT
 """
 
@@ -106,19 +109,34 @@ Para más información, consulta el README.md
         """
     )
 
-    # Argumentos obligatorios
+    # Argumentos de datos (opcionales para permitir modo GUI)
     parser.add_argument(
         '--asistencia',
         type=str,
-        required=True,
-        help='Ruta al archivo CSV con datos de asistencia'
+        required=False,
+        default=None,
+        help='Ruta al archivo CSV con datos de asistencia (modo CLI)'
     )
 
     parser.add_argument(
         '--calificaciones',
         type=str,
-        required=True,
-        help='Ruta al archivo CSV con datos de calificaciones'
+        required=False,
+        default=None,
+        help='Ruta al archivo CSV con datos de calificaciones (modo CLI)'
+    )
+
+    # Modo GUI/CLI
+    parser.add_argument(
+        '--gui',
+        action='store_true',
+        help='Forzar modo GUI (por defecto si no hay argumentos CLI)'
+    )
+
+    parser.add_argument(
+        '--cli',
+        action='store_true',
+        help='Forzar modo CLI (requiere --asistencia y --calificaciones)'
     )
 
     # Argumentos opcionales
@@ -185,7 +203,7 @@ Para más información, consulta el README.md
 
 def validar_argumentos(args) -> bool:
     """
-    Valida que los argumentos sean correctos.
+    Valida que los argumentos sean correctos (solo modo CLI).
 
     Args:
         args: Namespace con argumentos parseados
@@ -198,11 +216,11 @@ def validar_argumentos(args) -> bool:
     """
     errores = []
 
-    # Validar que existan los archivos
-    if not Path(args.asistencia).exists():
+    # Validar que existan los archivos (solo en modo CLI)
+    if args.asistencia and not Path(args.asistencia).exists():
         errores.append(f"Archivo de asistencia no encontrado: {args.asistencia}")
 
-    if not Path(args.calificaciones).exists():
+    if args.calificaciones and not Path(args.calificaciones).exists():
         errores.append(f"Archivo de calificaciones no encontrado: {args.calificaciones}")
 
     # Validar umbrales si se proporcionan
@@ -234,10 +252,22 @@ def validar_argumentos(args) -> bool:
 
 
 # ============================================================================
-# FUNCIÓN PRINCIPAL
+# MODO GUI
 # ============================================================================
 
-def main():
+def main_gui():
+    """
+    Inicia la aplicación en modo GUI.
+    """
+    from gui import run_app
+    run_app()
+
+
+# ============================================================================
+# MODO CLI
+# ============================================================================
+
+def main_cli(args):
     """
     Función principal del programa.
 
@@ -393,6 +423,49 @@ def main():
         logger.error("=" * 70 + "\n")
 
         return 1
+
+
+# ============================================================================
+# FUNCIÓN PRINCIPAL (SELECTOR GUI/CLI)
+# ============================================================================
+
+def main():
+    """
+    Función principal que decide entre modo GUI o CLI.
+
+    - Si no hay argumentos o se usa --gui: inicia modo GUI
+    - Si hay argumentos de datos (--asistencia, --calificaciones): usa modo CLI
+    """
+    # Si no hay argumentos de línea de comando, iniciar GUI
+    if len(sys.argv) == 1:
+        logger.info("🖥️  Iniciando modo GUI...")
+        main_gui()
+        return 0
+
+    # Parsear argumentos
+    args = parse_arguments()
+
+    # Determinar modo
+    usar_gui = (
+        args.gui or
+        (not args.cli and not args.asistencia and not args.calificaciones)
+    )
+
+    if usar_gui:
+        logger.info("🖥️  Iniciando modo GUI...")
+        main_gui()
+        return 0
+    else:
+        # Validar que se proporcionen los archivos en modo CLI
+        if not args.asistencia or not args.calificaciones:
+            logger.error(
+                "❌ Error: Modo CLI requiere --asistencia y --calificaciones\n"
+                "Usa --gui para modo gráfico o proporciona ambos archivos.\n"
+            )
+            sys.exit(1)
+
+        logger.info("💻 Iniciando modo CLI...")
+        return main_cli(args)
 
 
 # ============================================================================
