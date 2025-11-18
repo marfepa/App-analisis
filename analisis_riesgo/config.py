@@ -7,14 +7,75 @@ Cumple con RGPD al no almacenar datos personales.
 """
 
 import json
-from typing import Dict, Any
+from typing import Dict, Any, TypedDict, List
+
+
+# ============================================================================
+# TYPED DICTIONARIES FOR TYPE SAFETY
+# ============================================================================
+
+class ThresholdConfig(TypedDict, total=False):
+    """Type-safe configuration for analysis thresholds."""
+    # Asistencia
+    asistencia_riesgo: float
+    asistencia_alerta: float
+    asistencia_optima: float
+
+    # Rendimiento
+    nota_aprobado: float
+    nota_riesgo: float
+    nota_alerta: float
+    nota_excelente: float
+
+    # Competencias
+    competencia_riesgo: float
+    competencia_alerta: float
+    competencia_optima: float
+
+    # Faltas y Retrasos
+    max_faltas_justificadas: int
+    max_faltas_injustificadas: int
+    max_retrasos: int
+
+    # Evaluación
+    min_evaluaciones: int
+    min_sesiones: int
+
+    # Machine Learning
+    ml_n_clusters: int
+    ml_min_samples: int
+    ml_test_size: float
+    ml_random_state: int
+
+    # Tendencias
+    tendencia_positiva: float
+    tendencia_negativa: float
+
+
+class ReporteConfigDict(TypedDict, total=False):
+    """Type-safe configuration for report generation."""
+    formato_fecha: str
+    formato_fecha_reporte: str
+    formato_datetime: str
+
+
+class DatosConfigDict(TypedDict, total=False):
+    """Type-safe configuration for data loading."""
+    columnas_asistencia: List[str]
+    columnas_asistencia_opcionales: List[str]
+    columnas_calificaciones: List[str]
+    columnas_calificaciones_opcionales: List[str]
+    mapeo_columnas_calificaciones: Dict[str, List[str]]
+    delimitadores_csv: List[str]
+    encodings: List[str]
+    columnas_sensibles: List[str]
 
 
 # ============================================================================
 # UMBRALES POR DEFECTO
 # ============================================================================
 
-UMBRALES = {
+UMBRALES: ThresholdConfig = {
     # Umbrales de Asistencia (%)
     'asistencia_riesgo': 75.0,      # Debajo de este % = RIESGO ALTO
     'asistencia_alerta': 85.0,      # Entre este y riesgo = ALERTA
@@ -734,6 +795,11 @@ GUI_STYLES = {
 # ============================================================================
 
 __all__ = [
+    # TypedDicts
+    'ThresholdConfig',
+    'ReporteConfigDict',
+    'DatosConfigDict',
+    # Config Dicts
     'UMBRALES',
     'NIVELES_RIESGO',
     'COMPETENCIAS',
@@ -742,6 +808,7 @@ __all__ = [
     'MENSAJES',
     'GUI_CONFIG',
     'GUI_STYLES',
+    # Functions
     'cargar_umbrales_personalizados',
     'validar_umbrales',
     'obtener_nivel_riesgo_asistencia',

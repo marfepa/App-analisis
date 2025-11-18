@@ -51,69 +51,73 @@ class AnalysisWorker(QThread):
         self.asistencia_path = asistencia_path
         self.calificaciones_path = calificaciones_path
         self.umbrales = umbrales
+        self._is_running = True
+
+    def stop(self):
+        """Solicita la cancelación del thread."""
+        self._is_running = False
 
     def run(self):
-        """Ejecuta el análisis completo."""
+        """Ejecuta el análisis completo con soporte para cancelación."""
         try:
             # 1. Cargar datos
+            if not self._is_running:
+                return
             self.progress.emit(10, "Cargando datos de asistencia...")
             df_asistencia = data_loader.cargar_asistencia(self.asistencia_path)
 
+            if not self._is_running:
+                return
             self.progress.emit(20, "Cargando datos de calificaciones...")
             df_calificaciones = data_loader.cargar_calificaciones(
                 self.calificaciones_path
             )
 
             # 2. Validar datos
+            if not self._is_running:
+                return
             self.progress.emit(30, "Validando datos...")
             data_loader.validar_datos(df_asistencia, df_calificaciones)
 
-            # 3. Analizar asistencia
-            self.progress.emit(40, "Analizando asistencia...")
-            resultados_asist = analysis.analizar_asistencia(
-                df_asistencia,
-                self.umbrales
-            )
-
-            # 4. Analizar rendimiento
-            self.progress.emit(60, "Analizando rendimiento académico...")
-            resultados_rend = analysis.analizar_rendimiento(
-                df_calificaciones,
-                self.umbrales
-            )
-
-            # 5. Clasificar estudiantes
-            self.progress.emit(70, "Clasificando estudiantes por riesgo...")
-            clasificacion = analysis.clasificar_estudiantes(
-                resultados_asist,
-                resultados_rend,
-                self.umbrales
-            )
-
-            # 6. Análisis ML
-            self.progress.emit(80, "Ejecutando análisis con Machine Learning...")
-            ml_results = analysis.analizar_con_ml(
+            # 3. Usar el análisis completo optimizado (vectorizado)
+            if not self._is_running:
+                return
+            self.progress.emit(40, "Analizando datos (vectorizado)...")
+            resultados = analysis.realizar_analisis_completo(
                 df_asistencia,
                 df_calificaciones,
                 self.umbrales
             )
 
-            # 7. Compilar resultados
-            self.progress.emit(95, "Compilando resultados...")
-            resultados = {
-                'asistencia': resultados_asist,
-                'rendimiento': resultados_rend,
-                'clasificacion': clasificacion,
-                'ml': ml_results,
+            if not self._is_running:
+                return
+
+            # Para compatibilidad con GUI antigua, crear estructura esperada
+            self.progress.emit(95, "Preparando resultados...")
+            resultados_compatibles = {
+                'asistencia': {
+                    'estudiantes': {},
+                    'resumen': resultados['resumen']
+                },
+                'rendimiento': {
+                    'estudiantes': {},
+                    'resumen': resultados['resumen']
+                },
+                'clasificacion': resultados['analisis_individual'],
+                'ml': resultados['ml'],
                 'df_asistencia': df_asistencia,
                 'df_calificaciones': df_calificaciones,
             }
 
+            if not self._is_running:
+                return
+
             self.progress.emit(100, "Análisis completado")
-            self.finished.emit(resultados)
+            self.finished.emit(resultados_compatibles)
 
         except Exception as e:
-            self.error.emit(f"Error durante el análisis: {str(e)}")
+            if self._is_running:  # Solo emitir error si no fue cancelado
+                self.error.emit(f"Error durante el análisis: {str(e)}")
 
 
 class ReportWorker(QThread):
@@ -131,21 +135,36 @@ class ReportWorker(QThread):
     def run(self):
         """Genera el reporte."""
         try:
+            # Preparar resultados para el generador (compatible con nueva estructura)
+            # Si ya tiene la estructura optimizada, convertirla para compatibilidad
+            if 'analisis_individual' in self.resultados:
+                resultados_para_reporte = self.resultados
+            else:
+                # Estructura antigua, mantener como está
+                resultados_para_reporte = {
+                    'resumen': self.resultados.get('asistencia', {}).get('resumen', {}),
+                    'analisis_cursos': pd.DataFrame(),  # No disponible en formato antiguo
+                    'analisis_individual': self.resultados.get('clasificacion', pd.DataFrame()),
+                    'ml': self.resultados.get('ml'),
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'umbrales': {},
+                }
+
             if self.formato == 'excel':
+                from datetime import datetime
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_path = f"{self.output_dir}/analisis_riesgo_{timestamp}.xlsx"
                 output_path = report_generator.generar_reporte_excel(
-                    self.resultados['asistencia'],
-                    self.resultados['rendimiento'],
-                    self.resultados['clasificacion'],
-                    self.resultados['ml'],
-                    output_dir=self.output_dir
+                    resultados_para_reporte,
+                    output_path
                 )
             elif self.formato == 'word':
+                from datetime import datetime
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_path = f"{self.output_dir}/informe_riesgo_{timestamp}.docx"
                 output_path = report_generator.generar_reporte_word(
-                    self.resultados['asistencia'],
-                    self.resultados['rendimiento'],
-                    self.resultados['clasificacion'],
-                    self.resultados['ml'],
-                    output_dir=self.output_dir
+                    resultados_para_reporte,
+                    output_path
                 )
             else:
                 raise ValueError(f"Formato desconocido: {self.formato}")
@@ -771,14 +790,24 @@ class MainWindow(QMainWindow):
 
     def display_summary(self):
         """Muestra el resumen."""
-        clasificacion = self.resultados.get('clasificacion', {})
+        # Manejar ambos formatos: DataFrame o dict
+        clasificacion = self.resultados.get('clasificacion', pd.DataFrame())
 
-        # Contar por nivel de riesgo
-        alto = len(clasificacion.get('ALTO', []))
-        medio = len(clasificacion.get('MEDIO', []))
-        alerta = len(clasificacion.get('ALERTA', []))
-        optimo = len(clasificacion.get('OPTIMO', []))
-        total = alto + medio + alerta + optimo
+        if isinstance(clasificacion, pd.DataFrame):
+            # Nuevo formato vectorizado
+            df_clasificacion = clasificacion
+            alto = (df_clasificacion['nivel_riesgo_final'] == 'ALTO').sum()
+            medio = (df_clasificacion['nivel_riesgo_final'] == 'MEDIO').sum()
+            alerta = (df_clasificacion['nivel_riesgo_final'] == 'ALERTA').sum()
+            optimo = (df_clasificacion['nivel_riesgo_final'] == 'OPTIMO').sum()
+            total = len(df_clasificacion)
+        else:
+            # Formato antiguo (dict)
+            alto = len(clasificacion.get('ALTO', []))
+            medio = len(clasificacion.get('MEDIO', []))
+            alerta = len(clasificacion.get('ALERTA', []))
+            optimo = len(clasificacion.get('OPTIMO', []))
+            total = alto + medio + alerta + optimo
 
         # Si no hay estudiantes, mostrar mensaje apropiado
         if total == 0:
@@ -832,28 +861,27 @@ class MainWindow(QMainWindow):
 
     def display_lists(self):
         """Muestra los listados en la tabla."""
-        clasificacion = self.resultados.get('clasificacion', {})
+        clasificacion = self.resultados.get('clasificacion', pd.DataFrame())
 
         # Limpiar tabla
         self.results_table.setRowCount(0)
 
-        # Agregar filas
-        row = 0
-        for nivel in ['ALTO', 'MEDIO', 'ALERTA', 'OPTIMO']:
-            estudiantes = clasificacion.get(nivel, [])
-
-            for est_data in estudiantes:
+        if isinstance(clasificacion, pd.DataFrame) and not clasificacion.empty:
+            # Nuevo formato vectorizado (DataFrame)
+            for idx, row_data in clasificacion.iterrows():
+                row = self.results_table.rowCount()
                 self.results_table.insertRow(row)
 
                 # ID
-                id_item = QTableWidgetItem(str(est_data.get('IDEstudiante', '')))
+                id_item = QTableWidgetItem(str(row_data.get('IDEstudiante', '')))
                 self.results_table.setItem(row, 0, id_item)
 
                 # Curso
-                curso_item = QTableWidgetItem(str(est_data.get('CursoID', '')))
+                curso_item = QTableWidgetItem(str(row_data.get('CursoID', '')))
                 self.results_table.setItem(row, 1, curso_item)
 
                 # Nivel de riesgo
+                nivel = str(row_data.get('nivel_riesgo_final', 'DESCONOCIDO'))
                 nivel_item = QTableWidgetItem(nivel)
 
                 # Color según nivel
@@ -869,42 +897,105 @@ class MainWindow(QMainWindow):
                 self.results_table.setItem(row, 2, nivel_item)
 
                 # Detalles
-                asist = est_data.get('PorcentajeAsistencia', 0)
-                nota = est_data.get('NotaMedia', 0)
+                asist = row_data.get('asist_porcentaje_asistencia', 0)
+                nota = row_data.get('rend_nota_media', 0)
                 detalles = f"Asistencia: {asist:.1f}% | Nota: {nota:.2f}"
                 detalles_item = QTableWidgetItem(detalles)
                 self.results_table.setItem(row, 3, detalles_item)
 
-                row += 1
+        elif isinstance(clasificacion, dict):
+            # Formato antiguo (dict)
+            row = 0
+            for nivel in ['ALTO', 'MEDIO', 'ALERTA', 'OPTIMO']:
+                estudiantes = clasificacion.get(nivel, [])
+
+                for est_data in estudiantes:
+                    self.results_table.insertRow(row)
+
+                    # ID
+                    id_item = QTableWidgetItem(str(est_data.get('IDEstudiante', '')))
+                    self.results_table.setItem(row, 0, id_item)
+
+                    # Curso
+                    curso_item = QTableWidgetItem(str(est_data.get('CursoID', '')))
+                    self.results_table.setItem(row, 1, curso_item)
+
+                    # Nivel de riesgo
+                    nivel_item = QTableWidgetItem(nivel)
+
+                    # Color según nivel
+                    if nivel == 'ALTO':
+                        nivel_item.setBackground(QColor(255, 59, 48, 50))
+                    elif nivel == 'MEDIO':
+                        nivel_item.setBackground(QColor(255, 149, 0, 50))
+                    elif nivel == 'ALERTA':
+                        nivel_item.setBackground(QColor(255, 204, 0, 50))
+                    else:
+                        nivel_item.setBackground(QColor(52, 199, 89, 50))
+
+                    self.results_table.setItem(row, 2, nivel_item)
+
+                    # Detalles
+                    asist = est_data.get('PorcentajeAsistencia', 0)
+                    nota = est_data.get('NotaMedia', 0)
+                    detalles = f"Asistencia: {asist:.1f}% | Nota: {nota:.2f}"
+                    detalles_item = QTableWidgetItem(detalles)
+                    self.results_table.setItem(row, 3, detalles_item)
+
+                    row += 1
 
     def display_ml_results(self):
         """Muestra resultados de ML."""
         ml_results = self.resultados.get('ml', {})
 
-        if not ml_results:
+        if not ml_results or not ml_results.get('exito'):
             self.ml_content.setText(
-                "No hay suficientes datos para análisis ML"
+                "No hay suficientes datos para análisis ML o el análisis falló"
             )
             return
 
         # Extraer información
-        clusters = ml_results.get('clusters', [])
-        predicciones = ml_results.get('predicciones', {})
+        n_clusters = ml_results.get('n_clusters', 0)
+        silhouette = ml_results.get('silhouette', 0)
+        predicciones = ml_results.get('predicciones', pd.DataFrame())
 
-        ml_html = f"""
-        <div style='padding: 20px;'>
-            <h2>Análisis con Machine Learning</h2>
-            <h3>Clustering (K-Means)</h3>
-            <p>Se identificaron {len(clusters)} grupos de estudiantes
-            con patrones similares.</p>
+        if isinstance(predicciones, pd.DataFrame) and not predicciones.empty:
+            n_estudiantes = len(predicciones)
 
-            <h3>Predicciones de Riesgo</h3>
-            <p>El modelo ha clasificado automáticamente a los estudiantes
-            según su probabilidad de riesgo académico.</p>
+            # Contar por cluster
+            cluster_counts = predicciones.groupby('Cluster').size().to_dict()
+            cluster_info_html = ""
+            for cluster_id, count in sorted(cluster_counts.items()):
+                cluster_info_html += f"<li>Cluster {cluster_id}: {count} estudiantes</li>"
 
-            <p><em>Nota: Para gráficos detallados, descarga el reporte Excel.</em></p>
-        </div>
-        """
+            ml_html = f"""
+            <div style='padding: 20px;'>
+                <h2>Análisis con Machine Learning</h2>
+                <h3>Clustering (K-Means)</h3>
+                <p>Se identificaron {n_clusters} grupos de estudiantes
+                con patrones similares.</p>
+                <p><strong>Silhouette Score:</strong> {silhouette:.3f}
+                (mide la calidad del clustering, 1.0 = perfecto)</p>
+
+                <h3>Distribución de Clusters</h3>
+                <ul>
+                    {cluster_info_html}
+                </ul>
+
+                <h3>Predicciones de Riesgo</h3>
+                <p>El modelo ha clasificado automáticamente a {n_estudiantes} estudiantes
+                según su probabilidad de riesgo académico basándose en múltiples features.</p>
+
+                <p><em>Nota: Para gráficos detallados y análisis completo, descarga el reporte Excel.</em></p>
+            </div>
+            """
+        else:
+            ml_html = """
+            <div style='padding: 20px;'>
+                <h2>Análisis con Machine Learning</h2>
+                <p>El análisis ML se completó pero no hay predicciones disponibles.</p>
+            </div>
+            """
 
         self.ml_content.setText(ml_html)
 
