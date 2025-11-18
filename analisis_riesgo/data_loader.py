@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Tuple, Dict, Any, List
 import logging
+import csv
 
 from config import DATOS_CONFIG, MENSAJES
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 def detectar_delimitador_y_encoding(file_path: str) -> Tuple[str, str]:
     """
-    Detecta automáticamente el delimitador y encoding de un CSV.
+    Detecta automáticamente el delimitador y encoding de un CSV usando csv.Sniffer.
 
     Args:
         file_path: Ruta al archivo CSV
@@ -47,33 +48,87 @@ def detectar_delimitador_y_encoding(file_path: str) -> Tuple[str, str]:
     if not path.exists():
         raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
 
-    # Probar combinaciones de encoding y delimitador
+    # Probar diferentes encodings con csv.Sniffer
     for encoding in DATOS_CONFIG['encodings']:
-        for delimiter in DATOS_CONFIG['delimitadores_csv']:
-            try:
-                # Intentar leer las primeras líneas
-                df = pd.read_csv(
-                    file_path,
-                    sep=delimiter,
-                    encoding=encoding,
-                    nrows=5
-                )
-                # Si tiene más de 1 columna, probablemente es correcto
-                if len(df.columns) > 1:
-                    logger.info(
-                        f"Detectado: delimiter='{delimiter}', "
-                        f"encoding='{encoding}'"
-                    )
-                    return delimiter, encoding
-            except Exception:
-                continue
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                # Leer un bloque de muestra
+                sample = f.read(4096)  # 4KB sample
+
+                # Usar csv.Sniffer para detectar el delimitador
+                sniffer = csv.Sniffer()
+                try:
+                    dialect = sniffer.sniff(sample, delimiters=',;\t|')
+                    delimiter = dialect.delimiter
+
+                    # Verificar que el delimitador funciona
+                    f.seek(0)
+                    reader = csv.reader(f, dialect)
+                    first_row = next(reader)
+
+                    if len(first_row) > 1:
+                        logger.info(
+                            f"✓ Detectado con csv.Sniffer: delimiter='{delimiter}', "
+                            f"encoding='{encoding}'"
+                        )
+                        return delimiter, encoding
+                except csv.Error:
+                    # Si Sniffer falla, probar delimitadores comunes
+                    for delimiter in DATOS_CONFIG['delimitadores_csv']:
+                        f.seek(0)
+                        reader = csv.reader(f, delimiter=delimiter)
+                        try:
+                            first_row = next(reader)
+                            if len(first_row) > 1:
+                                logger.info(
+                                    f"✓ Detectado (fallback): delimiter='{delimiter}', "
+                                    f"encoding='{encoding}'"
+                                )
+                                return delimiter, encoding
+                        except:
+                            continue
+        except Exception:
+            continue
 
     # Si no se detectó, usar valores por defecto
     logger.warning(
-        "No se pudo detectar delimitador y encoding. "
+        "⚠️  No se pudo detectar delimitador y encoding. "
         "Usando valores por defecto: ',', 'utf-8'"
     )
     return ',', 'utf-8'
+
+
+def optimizar_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reduce uso de memoria convirtiendo columnas object a category donde sea eficiente.
+
+    Args:
+        df: DataFrame a optimizar
+
+    Returns:
+        DataFrame optimizado con menos uso de memoria
+    """
+    memory_before = df.memory_usage(deep=True).sum() / 1024**2  # MB
+
+    for col in df.select_dtypes(include=['object']).columns:
+        num_unique = df[col].nunique()
+        num_total = len(df)
+
+        # Si menos del 50% son únicos, convertir a category
+        if num_total > 0 and num_unique / num_total < 0.5:
+            df[col] = df[col].astype('category')
+            logger.debug(f"  • Columna '{col}' convertida a category ({num_unique} valores únicos)")
+
+    memory_after = df.memory_usage(deep=True).sum() / 1024**2  # MB
+    reduction = ((memory_before - memory_after) / memory_before * 100) if memory_before > 0 else 0
+
+    if reduction > 5:  # Solo log si la reducción es significativa
+        logger.info(
+            f"  💾 Memoria optimizada: {memory_before:.2f}MB → {memory_after:.2f}MB "
+            f"({reduction:.1f}% reducción)"
+        )
+
+    return df
 
 
 def leer_csv_robusto(file_path: str,
@@ -108,8 +163,11 @@ def leer_csv_robusto(file_path: str,
         # Limpiar nombres de columnas (quitar espacios)
         df.columns = df.columns.str.strip()
 
-        logger.info(f"CSV leído exitosamente: {file_path}")
+        logger.info(f"✓ CSV leído exitosamente: {file_path}")
         logger.info(f"  - Filas: {len(df)}, Columnas: {len(df.columns)}")
+
+        # Optimizar dtypes para reducir memoria
+        df = optimizar_dtypes(df)
 
         return df
 
