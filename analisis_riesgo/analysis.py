@@ -320,9 +320,10 @@ def realizar_analisis_completo(df_asistencia: pd.DataFrame,
     # 4. Análisis por Cursos (Vectorizado)
     logger.info("\n🏫 Analizando cursos...")
 
-    # Obtener mapa de estudiante -> curso
+    # Obtener mapa de estudiante -> curso (CORRECCIÓN: evitar duplicados por estudiante)
     if 'CursoID' in df_asistencia.columns:
-        mapa_cursos = df_asistencia[['IDEstudiante', 'CursoID']].drop_duplicates()
+        # keep='last' asume que el último registro es el curso actual del estudiante
+        mapa_cursos = df_asistencia[['IDEstudiante', 'CursoID']].drop_duplicates(subset=['IDEstudiante'], keep='last')
         mapa_cursos = mapa_cursos.set_index('IDEstudiante')
         df_final_con_curso = df_final.join(mapa_cursos, on='IDEstudiante')
     else:
@@ -331,7 +332,7 @@ def realizar_analisis_completo(df_asistencia: pd.DataFrame,
 
     # Si hay nulos en curso, intentar llenar con calificaciones
     if df_final_con_curso['CursoID'].isnull().any() and 'CursoID' in df_calificaciones.columns:
-        mapa_cursos_notas = df_calificaciones[['IDEstudiante', 'CursoID']].drop_duplicates()
+        mapa_cursos_notas = df_calificaciones[['IDEstudiante', 'CursoID']].drop_duplicates(subset=['IDEstudiante'], keep='last')
         mapa_cursos_notas = mapa_cursos_notas.set_index('IDEstudiante')
         df_final_con_curso['CursoID'] = df_final_con_curso['CursoID'].fillna(
             df_final_con_curso.join(mapa_cursos_notas, on='IDEstudiante', rsuffix='_n')['CursoID_n']
